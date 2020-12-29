@@ -1,0 +1,367 @@
+<!doctype html>
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+	<title>reveal.js</title>
+
+	<link rel="stylesheet" href="dist/reset.css">
+	<link rel="stylesheet" href="dist/reveal.css">
+	<link rel="stylesheet" href="dist/theme/black.css" id="theme">
+
+	<!-- Theme used for syntax highlighted code -->
+	<link rel="stylesheet" href="plugin/highlight/monokai.css" id="highlight-theme">
+</head>
+
+<body>
+	<div class="reveal">
+		<div class="slides">
+			<section data-markdown>
+				# Jest
+			</section>
+
+			<section data-markdown>
+				## Getting started
+
+				```
+				const sum = require('./sum');
+
+				test('adds 1 + 2 to equal 3', () => {
+					expect(sum(1, 2)).toBe(3);
+				});
+				```
+
+				npm script alias:
+				```
+				{
+					"scripts": {
+						"test": "jest"
+					}
+				}
+				```
+			</section>
+
+			<section>
+				<h2>Matchers</h2>
+				<section data-markdown>
+					Primitives:
+					```
+					test('two plus two is four', () => {
+						expect(2 + 2).toBe(4);
+					});
+					```
+				</section>
+
+				<section data-markdown>
+					Objects and arrays:
+					```
+					test('object assignment', () => {
+						const data = {one: 1};
+						data['two'] = 2;
+						expect(data).toEqual({one: 1, two: 2});
+					});
+
+					```
+				</section>
+				<section data-markdown>
+					Opposite:
+					```
+					test('adding positive numbers is not zero', () => {
+						for (let a = 1; a < 10; a++) { 
+							for (let b=1; b < 10; b++) { 
+								expect(a + b).not.toBe(0); 
+							} 
+						} 
+					}); 
+					```
+				</section>
+				<section data-markdown>
+				Throw:
+				```
+				function compileAndroidCode() { 
+					throw new Error('you are using the wrong JDK'); 
+				} 
+				test('compiling android goes as expected', ()=> {
+					expect(compileAndroidCode).toThrow();
+					expect(compileAndroidCode).toThrow(Error);
+
+					// You can also use the exact error message or a regexp
+					expect(compileAndroidCode).toThrow('you are using the wrong JDK');
+					expect(compileAndroidCode).toThrow(/JDK/);
+				});
+				```
+				</section>
+				<section data-markdown>
+				N.B. You cannot call the thorwing function, if you need to pass any params use 
+				`expect(() => compileAndroidCode(params)).toThrow();`
+
+				With these simple assertions we can test almost everything. Other [shorhand
+				methods](https://jestjs.io/docs/en/using-matchers) are provided. The difference is in the result
+				readability
+				</section>
+			</section>
+
+			<section data-markdown>
+				## Asynchronous code
+				```
+				test('the data is peanut butter', () => {
+					expect.assertions(1);
+					return fetchData().then(data => {
+						expect(data).toBe('peanut butter');
+					});
+				});
+				```
+				- Don't forget to return the promise
+				- `expect.assertions` fails it the assertion is not run (e.g. because the promise was rejected)
+				- async/await works out of the box
+			</section>
+
+			<section>
+				<h2>Setup and teardown</h2>
+				<section data-markdown>
+					Every test:
+					```
+					beforeEach(() => {
+						initializeCityDatabase();
+					});
+
+					afterEach(() => {
+						clearCityDatabase();
+					});
+					```
+				</section>
+				<section data-markdown>
+					All of them:
+					```
+					beforeAll(() => {
+						return initializeCityDatabase();
+					});
+
+					afterAll(() => {
+						return clearCityDatabase();
+					});
+					```
+				</section>
+			</section>
+
+			<section data-markdown>
+				## Isolate a test
+				```
+				test.only('this will be the only test that runs', () => {
+					expect(true).toBe(false);
+				});
+
+				test('this test will not run', () => {
+					expect('A').toBe('A');
+				});
+
+				```
+			</section>
+
+			<section data-markdown>
+				## Mocking functions
+				```
+				const mockCallback = jest.fn(x => 42 + x);
+				forEach([0, 1], mockCallback);
+
+				// The mock function is called twice
+				expect(mockCallback.mock.calls.length).toBe(2);
+
+				// The first argument of the first call to the function was 0
+				expect(mockCallback.mock.calls[0][0]).toBe(0);
+
+				// The first argument of the second call to the function was 1
+				expect(mockCallback.mock.calls[1][0]).toBe(1);
+
+				// The return value of the first call to the function was 42
+				expect(mockCallback.mock.results[0].value).toBe(42);
+				```
+			</section>
+
+			<section>
+				<h2>Mocking modules</h2>
+				<section data-markdown>
+					```
+					// users.js
+					import axios from 'axios';
+
+					class Users {
+						static all() {
+							return axios.get('/users.json').then(resp => resp.data);
+						}
+					}
+					export default Users;
+					```
+				</section>
+				<section data-markdown>
+					```
+					// users.test.js
+					import ax from 'axios';
+					import Users from './users';
+
+					jest.mock('axios');
+
+					test('should fetch users', () => {
+						const users = [{name: 'Bob'}];
+						const resp = {data: users};
+						ax.get.mockResolvedValue(resp);
+
+						// or you could use the following depending on your use case:
+						// axios.get.mockImplementation(() => Promise.resolve(resp))
+
+						// use .mockReturnValue if not returning a promise
+
+						return Users.all().then(data => expect(data).toEqual(users));
+					});
+					```
+				</section>
+				<section data-markdown>
+					Or write a mock implementation of the module in a folder named `__mocks__` (case sensitive) that is a sibling
+					of the mocked module's folder. Then either set `automock` option to `true`or call `jest.mock('moduleName')` in
+					the test (for code node modules `automock` doesn't work).
+				</section>
+				<section data-markdown>
+					Auto mocks can be generated with `jest.createMockFromModule` and then manually extended/amended
+				</section>
+				<section data-markdown>
+					To mock a module, but still use parts of the original one:
+					```
+					jest.mock('node-fetch');
+					import fetch from 'node-fetch';
+					const {Response} = jest.requireActual('node-fetch');
+					```
+				</section>
+			</section>
+
+			<section>
+				<h2>Timers</h2>
+				<section data-markdown>
+					```
+					// __tests__/timerGame-test.js
+					'use strict';
+
+					jest.useFakeTimers();
+
+					test('waits 1 second before ending the game', () => {
+						const timerGame = require('../timerGame');
+						timerGame();
+
+						expect(setTimeout).toHaveBeenCalledTimes(1);
+						expect(setTimeout).toHaveBeenLastCalledWith(
+							expect.any(Function), 1000
+						);
+					});
+					```
+				</section>
+				<section data-markdown>
+					```
+					test('calls the callback after 1 second', () => {
+						const timerGame = require('../timerGame');
+						const callback = jest.fn();
+
+						timerGame(callback);
+
+						// At this point in time, the callback should not have been called yet
+						expect(callback).not.toBeCalled();
+
+						// Fast-forward until all timers have been executed
+						jest.runAllTimers();
+
+						// Now our callback should have been called!
+						expect(callback).toBeCalled();
+						expect(callback).toHaveBeenCalledTimes(1);
+					});
+					```
+					Checkout `jest.runAllTimers()` and `jest.runOnlyPendingTimers()`as well
+				</section>
+			</section>
+
+			<section>
+				<h2>Snapshot</h2>
+				<section>
+					<pre data-id="code-animation"><code class="hljs" data-trim><script type="text/template">
+						import React from 'react';
+						import renderer from 'react-test-renderer';
+						import Link from '../Link.react';
+
+						it('renders correctly', () => {
+							const tree = renderer
+								.create(<Link page="http://www.facebook.com">Facebook</Link>)
+								.toJSON();
+							expect(tree).toMatchSnapshot();
+						});
+					</script></code></pre>
+				</section>
+				<section data-markdown>
+					- -u updates all failing snapshot, to update only some use the --testNamePattern flag
+					- treat snapshots as code (commit and code review)
+					- they test an interface: components, but API responses, error messages and logs as well
+				</section>
+				<section data-markdown>
+					Exclude properties that are expected to change (dates, ids, ect.):
+					```
+					it('will check the matchers and pass', () => {
+						const user = {
+							createdAt: new Date(),
+							id: Math.floor(Math.random() * 20),
+							name: 'LeBron James',
+						};
+
+						expect(user).toMatchSnapshot({
+							createdAt: expect.any(Date),
+							id: expect.any(Number),
+						});
+					});
+
+					// Snapshot
+					exports[`will check the matchers and pass 1`] = `
+						Object {
+							"createdAt": Any<Date>,
+							"id": Any<Number>,
+							"name": "LeBron James",
+						}
+					`;
+					```
+				</section>
+				<section data-markdown>
+					or mock them:
+					```
+					Date.now = jest.fn(() => 1482363367071);
+					```
+				</section>
+			</section>
+			<section data-markdown>
+				## Further reading:
+
+				debug in vs code:
+
+				https://jestjs.io/docs/en/troubleshooting#debugging-in-vs-code
+			</section>
+			<section data-markdown>
+				Francesco Bedussi
+
+				*23rd October 2020*
+			</section>
+		</div>
+	</div>
+
+	<script src="dist/reveal.js"></script>
+	<script src="plugin/notes/notes.js"></script>
+	<script src="plugin/markdown/markdown.js"></script>
+	<script src="plugin/highlight/highlight.js"></script>
+	<script>
+		// More info about initialization & config:
+		// - https://revealjs.com/initialization/
+		// - https://revealjs.com/config/
+		Reveal.initialize({
+			hash: true,
+
+			// Learn about plugins: https://revealjs.com/plugins/
+			plugins: [RevealMarkdown, RevealHighlight, RevealNotes]
+		});
+	</script>
+</body>
+
+</html>
